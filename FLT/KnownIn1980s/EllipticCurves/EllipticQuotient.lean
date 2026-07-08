@@ -128,37 +128,28 @@ variable {F : Type*} [Field F]
 a monic quadratic, so there are only finitely many. -/
 lemma Affine.finite_setOf_equation (W : Affine F) (x : F) :
     {y : F | W.Equation x y}.Finite := by
-  refine (Polynomial.finite_setOf_isRoot (p := X ^ 2 + Polynomial.C (W.a₁ * x + W.a₃) * X
-    - Polynomial.C (x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆)) ?_).subset ?_
-  · intro hp
-    have h2 := congrArg (fun q => Polynomial.coeff q 2) hp
-    simp only [Polynomial.coeff_add, Polynomial.coeff_sub, Polynomial.coeff_C_mul,
-      Polynomial.coeff_X_pow, Polynomial.coeff_C, Polynomial.coeff_X,
-      Polynomial.coeff_zero] at h2
-    norm_num at h2
-  · intro y hy
-    have h := (W.equation_iff x y).mp hy
-    simp only [Set.mem_setOf_eq, Polynomial.IsRoot, Polynomial.eval_sub, Polynomial.eval_add,
-      Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_C, Polynomial.eval_X]
-    linear_combination h
+  refine (Polynomial.finite_setOf_isRoot (p := X ^ 2 + C (W.a₁ * x + W.a₃) * X
+    - C (x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆)) fun hp => by
+      have h2 := congrArg (coeff · 2) hp
+      simp only [coeff_add, coeff_sub, coeff_C_mul, coeff_X_pow, coeff_C, coeff_X,
+        coeff_zero] at h2
+      norm_num at h2
+    ).subset fun y hy => ?_
+  simp only [Set.mem_setOf_eq, IsRoot, eval_sub, eval_add, eval_mul, eval_pow, eval_C, eval_X]
+  linear_combination (W.equation_iff x y).mp hy
 
 /-- The affine points of a Weierstrass curve lying above a finite set of x-coordinates form a
 finite set. -/
 lemma Affine.Point.finite_setOf_xCoord_mem {W : Affine F} {s : Set F} (hs : s.Finite) :
     {P : W.Point | ∃ (x y : F) (hxy : W.Nonsingular x y),
       P = Affine.Point.some x y hxy ∧ x ∈ s}.Finite := by
+  classical
   have hbig : (⋃ x ∈ s, {x} ×ˢ {y : F | W.Equation x y}).Finite :=
     hs.biUnion fun x _ => (Set.finite_singleton x).prod (Affine.finite_setOf_equation W x)
-  refine Set.Finite.of_finite_image (f := fun P : W.Point =>
-      match P with | .zero => (0, 0) | .some x y _ => (x, y)) (hbig.subset ?_) ?_
-  · rintro ⟨u, v⟩ ⟨P, ⟨x, y, hxy, rfl, hxs⟩, him⟩
-    change (x, y) = (u, v) at him
-    obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp him
-    exact Set.mem_biUnion hxs ⟨rfl, hxy.1⟩
-  · rintro P ⟨x, y, hxy, rfl, -⟩ P' ⟨x', y', hxy', rfl, -⟩ h
-    change (x, y) = (x', y') at h
-    obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp h
-    rfl
+  refine (hbig.image fun p => if h : W.Nonsingular p.1 p.2
+    then Affine.Point.some p.1 p.2 h else 0).subset ?_
+  rintro _ ⟨x, y, hxy, rfl, hxs⟩
+  exact ⟨(x, y), Set.mem_biUnion hxs ⟨rfl, hxy.1⟩, dif_pos hxy⟩
 
 /-- The x-coordinate of an affine point, with junk value `0` at the point at infinity. -/
 def Affine.Point.xCoord {W : Affine F} : W.Point → F
@@ -169,6 +160,12 @@ def Affine.Point.xCoord {W : Affine F} : W.Point → F
 def Affine.Point.yCoord {W : Affine F} : W.Point → F
   | .zero => 0
   | .some _ y _ => y
+
+lemma Affine.Point.xCoord_some {W : Affine F} {x y : F} (hxy : W.Nonsingular x y) :
+    (Affine.Point.some x y hxy).xCoord = x := rfl
+
+lemma Affine.Point.yCoord_some {W : Affine F} {x y : F} (hxy : W.Nonsingular x y) :
+    (Affine.Point.some x y hxy).yCoord = y := rfl
 
 /-- The 2-torsion polynomial commutes with `map`. -/
 lemma map_twoTorsionPolynomial {F' : Type*} [Field F'] (W : WeierstrassCurve F)
@@ -189,10 +186,7 @@ lemma twoTorsionPolynomial_toPoly_eval {W : WeierstrassCurve F} {x y : F}
 `b₂ = b₄ = b₆ = 0` and hence `Δ = 0`. -/
 lemma a₁_ne_zero_or_a₃_ne_zero (W : WeierstrassCurve F) [W.IsElliptic]
     (h2 : (2 : F) = 0) : W.a₁ ≠ 0 ∨ W.a₃ ≠ 0 := by
-  by_contra hcon
-  push Not at hcon
-  obtain ⟨ha₁, ha₃⟩ := hcon
-  refine isUnit_iff_ne_zero.mp (W.isElliptic_iff.mp ‹W.IsElliptic›) ?_
+  refine not_and_or.mp fun ⟨ha₁, ha₃⟩ => (W.isElliptic_iff.mp ‹W.IsElliptic›).ne_zero ?_
   have hb₂ : W.b₂ = 0 := by rw [b₂, ha₁]; linear_combination 2 * W.a₂ * h2
   have hb₄ : W.b₄ = 0 := by rw [b₄, ha₁]; linear_combination W.a₄ * h2
   have hb₆ : W.b₆ = 0 := by rw [b₆, ha₃]; linear_combination 2 * W.a₆ * h2
@@ -204,25 +198,19 @@ leading coefficient is `4`, and in characteristic `2` it is `a₁²X² + a₃²`
 excluded by `a₁_ne_zero_or_a₃_ne_zero`. -/
 lemma twoTorsionPolynomial_toPoly_ne_zero (W : WeierstrassCurve F) [W.IsElliptic] :
     W.twoTorsionPolynomial.toPoly ≠ 0 := by
-  by_cases h2 : (2 : F) = 0
-  · rcases a₁_ne_zero_or_a₃_ne_zero W h2 with ha₁ | ha₃
-    · refine Cubic.ne_zero_of_b_ne_zero fun hb => ha₁ ?_
-      have h1 : W.a₁ ^ 2 = 0 := by
-        have hb' : W.b₂ = 0 := hb
-        rw [b₂] at hb'
-        linear_combination hb' - 2 * W.a₂ * h2
-      exact sq_eq_zero_iff.mp h1
-    · refine Cubic.ne_zero_of_d_ne_zero fun hd => ha₃ ?_
-      have h3 : W.a₃ ^ 2 = 0 := by
-        have hb : W.b₆ = 0 := hd
-        rw [b₆] at hb
-        linear_combination hb - 2 * W.a₆ * h2
-      exact sq_eq_zero_iff.mp h3
-  · refine Cubic.ne_zero_of_a_ne_zero ?_
-    change (4 : F) ≠ 0
-    intro h4
-    have h22 : (2 : F) * 2 = 0 := by linear_combination h4
-    exact h2 (mul_self_eq_zero.mp h22)
+  rcases eq_or_ne (2 : F) 0 with h2 | h2
+  · rcases a₁_ne_zero_or_a₃_ne_zero W h2 with ha | ha
+    · refine Cubic.ne_zero_of_b_ne_zero fun hb => ha (sq_eq_zero_iff.mp ?_)
+      have hb' : W.b₂ = 0 := hb
+      rw [b₂] at hb'
+      linear_combination hb' - 2 * W.a₂ * h2
+    · refine Cubic.ne_zero_of_d_ne_zero fun hd => ha (sq_eq_zero_iff.mp ?_)
+      have hd' : W.b₆ = 0 := hd
+      rw [b₆] at hd'
+      linear_combination hd' - 2 * W.a₆ * h2
+  · refine Cubic.ne_zero_of_a_ne_zero fun h4 => h2 (mul_self_eq_zero.mp ?_)
+    have h4' : (4 : F) = 0 := h4
+    linear_combination h4'
 
 /-- A separably closed field is infinite: over a finite field with `q` elements the
 polynomial `X^(q+1) − 1` is separable, so it would have `q + 1` distinct roots. -/
@@ -301,11 +289,7 @@ omit [IsSepClosure k K] [DecidableEq K] in
 with coefficients in `k`. -/
 lemma algEquiv_eval₂_algebraMap (p : k[X]) (σ : K ≃ₐ[k] K) (x : K) :
     σ (p.eval₂ (algebraMap k K) x) = p.eval₂ (algebraMap k K) (σ x) := by
-  have h : (σ : K →+* K).comp (algebraMap k K) = algebraMap k K :=
-    RingHom.ext fun a => σ.commutes a
-  have h2 := Polynomial.hom_eval₂ (p := p) (f := algebraMap k K) (g := (σ : K →+* K)) x
-  rw [h] at h2
-  exact h2
+  simpa only [aeval_def] using (aeval_algHom_apply σ x p).symm
 
 /-! ## §1 Galois-stability and the kernel polynomial over `K` -/
 
@@ -324,8 +308,7 @@ def xCoordSet (C : AddSubgroup (E⁄K).Point) : Set K :=
 omit [IsSepClosure k K] in
 lemma finite_xCoordSet (C : AddSubgroup (E⁄K).Point) [Finite C] :
     (xCoordSet K E C).Finite := by
-  have hC : (C : Set (E⁄K).Point).Finite := Set.toFinite _
-  refine (hC.image fun P => match P with | .zero => 0 | .some x _ _ => x).subset ?_
+  refine ((Set.toFinite (C : Set (E⁄K).Point)).image Affine.Point.xCoord).subset ?_
   rintro x ⟨y, hxy, hmem⟩
   exact ⟨Affine.Point.some x y hxy, hmem, rfl⟩
 
@@ -349,33 +332,26 @@ lemma natCard_eq_of_two_torsion_free (C : AddSubgroup (E⁄K).Point) [Finite C]
   classical
   have hCfin : (C : Set (E⁄K).Point).Finite := Set.toFinite _
   have hdiff : ((C : Set (E⁄K).Point) \ {0}).Finite := hCfin.sdiff
-  -- the x-coordinate extractor, with junk value `0` at the point at infinity
-  let f : (E⁄K).Point → K := fun P => match P with | .zero => 0 | .some x _ _ => x
   -- the degree of the kernel polynomial is the number of distinct x-coordinates
   have hdeg : (kernelPolynomial K E C).natDegree = (finite_xCoordSet K E C).toFinset.card := by
     rw [kernelPolynomial, Polynomial.natDegree_prod _ _ fun x _ => X_sub_C_ne_zero x]
     simp
-  -- `f` maps the nonzero points of `C` into the x-coordinate set
-  have Hmaps : ∀ P ∈ hdiff.toFinset, f P ∈ (finite_xCoordSet K E C).toFinset := by
-    intro P hP
-    rw [Set.Finite.mem_toFinset] at hP ⊢
-    obtain ⟨hPC, hP0⟩ := hP
-    cases P with
-    | zero => exact absurd rfl hP0
-    | some x' y' hxy' => exact ⟨y', hxy', hPC⟩
+  -- `xCoord` maps the nonzero points of `C` into the x-coordinate set
+  have Hmaps : ∀ P ∈ hdiff.toFinset,
+      Affine.Point.xCoord P ∈ (finite_xCoordSet K E C).toFinset := by
+    rintro (_ | ⟨x', y', hxy'⟩) hP <;> rw [Set.Finite.mem_toFinset] at hP ⊢
+    · exact absurd rfl hP.2
+    · exact ⟨y', hxy', hP.1⟩
   -- ... with every fiber being a pair `{Q, -Q}` of size exactly two (no 2-torsion)
   have fib : ∀ x ∈ (finite_xCoordSet K E C).toFinset,
-      (hdiff.toFinset.filter fun P => f P = x).card = 2 := by
+      (hdiff.toFinset.filter fun P => Affine.Point.xCoord P = x).card = 2 := by
     intro x hx
     rw [Set.Finite.mem_toFinset] at hx
     obtain ⟨y, hxy, hmem⟩ := hx
     have hQ0 : Affine.Point.some x y hxy ≠ (0 : (E⁄K).Point) :=
       Affine.Point.some_ne_zero hxy
-    have hne : Affine.Point.some x y hxy ≠ -Affine.Point.some x y hxy := by
-      intro hcontra
-      refine hQ0 (h2 _ hmem ?_)
-      nth_rewrite 2 [hcontra]
-      exact add_neg_cancel _
+    have hne : Affine.Point.some x y hxy ≠ -Affine.Point.some x y hxy :=
+      fun hcon => hQ0 (h2 _ hmem (add_eq_zero_iff_eq_neg.mpr hcon))
     rw [Finset.card_eq_two]
     refine ⟨_, _, hne, ?_⟩
     ext P
@@ -388,32 +364,16 @@ lemma natCard_eq_of_two_torsion_free (C : AddSubgroup (E⁄K).Point) [Finite C]
       | some x' y' hxy' => exact Affine.Point.X_eq_iff.mp hfP
     · rintro (rfl | rfl)
       · exact ⟨⟨hmem, hQ0⟩, rfl⟩
-      · refine ⟨⟨neg_mem hmem, fun h0 => hQ0 (neg_eq_zero.mp h0)⟩, ?_⟩
-        rw [Affine.Point.neg_some]
-  -- fiberwise count of the nonzero points
-  have key : hdiff.toFinset.card = 2 * (finite_xCoordSet K E C).toFinset.card := by
-    rw [Finset.card_eq_sum_card_fiberwise Hmaps, Finset.sum_congr rfl fib, Finset.sum_const,
-      smul_eq_mul, mul_comm]
-  -- add the point at infinity back in
-  have htf : hCfin.toFinset = insert (0 : (E⁄K).Point) hdiff.toFinset := by
-    ext P
-    simp only [Set.Finite.mem_toFinset, Finset.mem_insert, Set.mem_sdiff,
-      Set.mem_singleton_iff]
-    constructor
-    · intro hP
-      rcases eq_or_ne P 0 with h0 | h0
-      · exact Or.inl h0
-      · exact Or.inr ⟨hP, h0⟩
-    · rintro (rfl | ⟨hP, -⟩)
-      · exact C.zero_mem
-      · exact hP
-  have h0not : (0 : (E⁄K).Point) ∉ hdiff.toFinset := by
-    simp [Set.Finite.mem_toFinset]
+      · exact ⟨⟨neg_mem hmem, fun h0 => hQ0 (neg_eq_zero.mp h0)⟩,
+          by simp [Affine.Point.xCoord_some]⟩
+  -- fiberwise count of the nonzero points, then add the point at infinity back in
   calc Nat.card C = (C : Set (E⁄K).Point).ncard := rfl
-    _ = hCfin.toFinset.card := Set.ncard_eq_toFinset_card _ hCfin
-    _ = (insert (0 : (E⁄K).Point) hdiff.toFinset).card := by rw [htf]
-    _ = hdiff.toFinset.card + 1 := Finset.card_insert_of_notMem h0not
-    _ = 2 * (kernelPolynomial K E C).natDegree + 1 := by rw [key, hdeg]
+    _ = ((C : Set (E⁄K).Point) \ {0}).ncard + 1 :=
+        (Set.ncard_sdiff_singleton_add_one C.zero_mem hCfin).symm
+    _ = hdiff.toFinset.card + 1 := by rw [Set.ncard_eq_toFinset_card _ hdiff]
+    _ = 2 * (kernelPolynomial K E C).natDegree + 1 := by
+        rw [Finset.card_eq_sum_card_fiberwise Hmaps, Finset.sum_congr rfl fib,
+          Finset.sum_const, smul_eq_mul, mul_comm, hdeg]
 
 omit [IsSepClosure k K] in
 /-- **Key lemma (all of equivariance in one line).** The Galois action permutes the nonzero
@@ -421,19 +381,16 @@ points of a stable `C`, hence permutes their x-coordinates, hence fixes `h`. -/
 lemma kernelPolynomial_map_galois (C : AddSubgroup (E⁄K).Point) [Finite C]
     (hC : GaloisStable K E C) (σ : K ≃ₐ[k] K) :
     (kernelPolynomial K E C).map (σ : K →+* K) = kernelPolynomial K E C := by
-  -- the Galois action maps the x-coordinate set into itself ...
-  have hsub : ∀ τ : K ≃ₐ[k] K, ∀ x ∈ xCoordSet K E C, τ x ∈ xCoordSet K E C := by
-    rintro τ x ⟨y, hxy, hmem⟩
-    have h2 := hC τ _ hmem
-    rw [Affine.Point.map_some] at h2
-    exact ⟨τ y, _, h2⟩
-  -- ... hence (using `τ := σ⁻¹` too) permutes it
+  -- the Galois action maps the (finite) x-coordinate set into itself, hence permutes it
   have himg : (finite_xCoordSet K E C).toFinset.image σ = (finite_xCoordSet K E C).toFinset := by
-    refine Finset.Subset.antisymm ?_ ?_ <;> intro x hx <;>
-      simp only [Finset.mem_image, Set.Finite.mem_toFinset] at hx ⊢
-    · obtain ⟨y, hy, rfl⟩ := hx
-      exact hsub σ y hy
-    · exact ⟨σ.symm x, hsub σ.symm x hx, σ.apply_symm_apply x⟩
+    refine Finset.eq_of_subset_of_card_le ?_ (Finset.card_image_of_injective _ σ.injective).ge
+    intro x hx
+    obtain ⟨y, hy, rfl⟩ := Finset.mem_image.mp hx
+    rw [Set.Finite.mem_toFinset] at hy ⊢
+    obtain ⟨z, hz, hmem⟩ := hy
+    have h2 := hC σ _ hmem
+    rw [Affine.Point.map_some] at h2
+    exact ⟨σ z, _, h2⟩
   calc (kernelPolynomial K E C).map (σ : K →+* K)
       = ∏ x ∈ (finite_xCoordSet K E C).toFinset, (X - Polynomial.C (σ x)) := by
         rw [kernelPolynomial, Polynomial.map_prod]
@@ -583,9 +540,9 @@ noncomputable def velWEven (E : WeierstrassCurve k) (g : k[X]) : k :=
   else (6 * (velS₁ g ^ 3 - 3 * velS₁ g * velS₂ g + 3 * velS₃ g)
     + E.b₂ * (velS₁ g ^ 2 - 2 * velS₂ g) + E.b₄ * velS₁ g) / 2
 
-@[simp] lemma velTEven_one (E : WeierstrassCurve k) : velTEven E 1 = 0 := if_pos rfl
+lemma velTEven_one (E : WeierstrassCurve k) : velTEven E 1 = 0 := if_pos rfl
 
-@[simp] lemma velWEven_one (E : WeierstrassCurve k) : velWEven E 1 = 0 := if_pos rfl
+lemma velWEven_one (E : WeierstrassCurve k) : velWEven E 1 = 0 := if_pos rfl
 
 /-- Vélu's `t`, decomposed into the paired part (a real formula in the coefficients of the
 odd factor) plus Kohel's 2-torsion correction (the sorried leaf `velTEven`). -/
@@ -605,21 +562,22 @@ noncomputable def quotientCurve (E : WeierstrassCurve k) (h : k[X]) : Weierstras
   a₄ := E.a₄ - 5 * velT E h
   a₆ := E.a₆ - E.b₂ * velT E h - 7 * velW E h
 
-@[simp] lemma twoTorsionFactor_one (E : WeierstrassCurve k) : twoTorsionFactor E 1 = 1 := by
+lemma twoTorsionFactor_one (E : WeierstrassCurve k) : twoTorsionFactor E 1 = 1 := by
   classical
-  rw [twoTorsionFactor, EuclideanDomain.gcd_one_left]
-  simp
+  simp [twoTorsionFactor, EuclideanDomain.gcd_one_left]
 
-@[simp] lemma velT_one (E : WeierstrassCurve k) : velT E (1 : k[X]) = 0 := by
-  simp [velT, velTOdd, oddFactor, Polynomial.divByMonic_one, velS₁, velS₂]
+lemma velT_one (E : WeierstrassCurve k) : velT E (1 : k[X]) = 0 := by
+  simp [velT, velTOdd, oddFactor, Polynomial.divByMonic_one, velS₁,
+    velS₂, velTEven_one, twoTorsionFactor_one]
 
-@[simp] lemma velW_one (E : WeierstrassCurve k) : velW E (1 : k[X]) = 0 := by
-  simp [velW, velWOdd, oddFactor, Polynomial.divByMonic_one, velS₁, velS₂, velS₃]
+lemma velW_one (E : WeierstrassCurve k) : velW E (1 : k[X]) = 0 := by
+  simp [velW, velWOdd, oddFactor, Polynomial.divByMonic_one, velS₁,
+    velS₂, velS₃, velWEven_one, twoTorsionFactor_one]
 
 /-- Sanity check for the decomposed definitions: the quotient of `E` by the trivial kernel
 polynomial is `E` itself. -/
-@[simp] theorem quotientCurve_one (E : WeierstrassCurve k) : quotientCurve E 1 = E := by
-  ext <;> simp [quotientCurve]
+theorem quotientCurve_one (E : WeierstrassCurve k) : quotientCurve E 1 = E := by
+  ext <;> simp [quotientCurve, velT_one, velW_one]
 
 section MainStatements
 
@@ -673,20 +631,15 @@ lemma IsKernelPolynomial.twoTorsionFactor_eq_one [E.IsElliptic]
   have hψx : ((E⁄K).twoTorsionPolynomial.toPoly).eval x₀ = 0 :=
     Polynomial.eval_eq_zero_of_dvd_of_eval_eq_zero hdψ hx₀
   -- so `Q` is a nontrivial 2-torsion point of `C`, contradiction
-  have hsq : (2 * y + (E⁄K).a₁ * x₀ + (E⁄K).a₃) ^ 2 = 0 := by
-    rw [← twoTorsionPolynomial_toPoly_eval hxy.1]
-    exact hψx
-  have hy0 : 2 * y + (E⁄K).a₁ * x₀ + (E⁄K).a₃ = 0 := sq_eq_zero_iff.mp hsq
-  have hQ : Affine.Point.some x₀ y hxy = -Affine.Point.some x₀ y hxy := by
-    rw [Affine.Point.neg_some]
-    simp only [Affine.Point.some.injEq]
-    refine ⟨trivial, ?_⟩
+  have hy0 : y = (E⁄K).negY x₀ y := by
+    have hsq := sq_eq_zero_iff.mp (twoTorsionPolynomial_toPoly_eval hxy.1 ▸ hψx)
     have hnegY : (E⁄K).negY x₀ y = -y - (E⁄K).a₁ * x₀ - (E⁄K).a₃ := rfl
     rw [hnegY]
-    linear_combination hy0
-  refine Affine.Point.some_ne_zero hxy (h2 _ hmem ?_)
-  nth_rewrite 2 [hQ]
-  exact add_neg_cancel _
+    linear_combination hsq
+  refine Affine.Point.some_ne_zero hxy (h2 _ hmem (add_eq_zero_iff_eq_neg.mpr ?_))
+  rw [Affine.Point.neg_some]
+  simp only [Affine.Point.some.injEq]
+  exact ⟨trivial, hy0⟩
 
 omit [IsSepClosure k K] in
 /-- Spec for `velT` in the two-torsion-free case — now a theorem: the 2-torsion factor is
@@ -767,11 +720,8 @@ theorem map_galoisAction [E.IsElliptic] (φ : Isogeny K E E') (σ : K ≃ₐ[k] 
   haveI : Infinite (E⁄K).Point := Affine.Point.infinite (E⁄K)
   -- the poles of `φx` in `K` form a finite set
   have hpoles : {x : K | φ.φx.denom.eval₂ (algebraMap k K) x = 0}.Finite := by
-    refine (Polynomial.finite_setOf_isRoot (p := φ.φx.denom.map (algebraMap k K)) ?_).subset ?_
-    · exact (Polynomial.map_ne_zero_iff (algebraMap k K).injective).mpr (RatFunc.denom_ne_zero _)
-    · intro x hx
-      simp only [Set.mem_setOf_eq, Polynomial.IsRoot, Polynomial.eval_map]
-      exact hx
+    simpa only [IsRoot.def, eval_map] using Polynomial.finite_setOf_isRoot
+      ((Polynomial.map_ne_zero_iff (algebraMap k K).injective).mpr (RatFunc.denom_ne_zero φ.φx))
   -- away from the poles the two compositions agree, by the coherence clause on both sides
   have key : ∀ Q : (E⁄K).Point,
       φ.toHom (Affine.Point.map σ.toAlgHom Q) ≠ Affine.Point.map σ.toAlgHom (φ.toHom Q) →
@@ -798,11 +748,7 @@ theorem map_galoisAction [E.IsElliptic] (φ : Isogeny K E E') (σ : K ≃ₐ[k] 
         ((E.toAffine.baseChange_nonsingular σ.toAlgHom.injective ..).mpr hxy) hdenσ
       rw [e₁, Affine.Point.map_some, Affine.Point.map_some]
       refine e₂.trans ?_
-      simp only [hcoe, Affine.Point.some.injEq]
-      constructor
-      · rw [map_div₀, algEquiv_eval₂_algebraMap, algEquiv_eval₂_algebraMap]
-      · rw [map_add, map_mul, map_div₀, map_div₀, algEquiv_eval₂_algebraMap,
-          algEquiv_eval₂_algebraMap, algEquiv_eval₂_algebraMap, algEquiv_eval₂_algebraMap]
+      simp only [hcoe, map_add, map_mul, map_div₀, algEquiv_eval₂_algebraMap]
   -- conclude: the two compositions are equal as homomorphisms
   have heq : φ.toHom.comp (Affine.Point.map σ.toAlgHom)
       = (Affine.Point.map σ.toAlgHom).comp φ.toHom := by
@@ -815,11 +761,9 @@ theorem map_galoisAction [E.IsElliptic] (φ : Isogeny K E E') (σ : K ≃ₐ[k] 
 
 /-- Kernels of `k`-isogenies are Galois-stable (immediate from equivariance). -/
 theorem ker_galoisStable [E.IsElliptic] (φ : Isogeny K E E') :
-    GaloisStable K E φ.toHom.ker := by
-  intro σ P hP
-  rw [AddMonoidHom.mem_ker] at hP ⊢
-  rw [map_galoisAction K φ σ P, hP]
-  exact _root_.map_zero _
+    GaloisStable K E φ.toHom.ker := fun σ P hP => by
+  rw [AddMonoidHom.mem_ker, map_galoisAction K φ σ P, AddMonoidHom.mem_ker.mp hP,
+    _root_.map_zero]
 
 end Isogeny
 
@@ -859,18 +803,16 @@ theorem translate_finsum_add_mem (C : AddSubgroup (E⁄K).Point) [Finite C]
     simp only [Set.Finite.mem_toFinset, Set.mem_sdiff, Set.mem_singleton_iff,
       Finset.mem_erase, and_comm]
   -- translation by `Q₀` permutes `C`, matching `C ∖ {0}` with `C ∖ {Q₀}`
+  have himgFull : hCfin.toFinset.image (fun Q => Q₀ + Q) = hCfin.toFinset := by
+    refine Finset.eq_of_subset_of_card_le ?_
+      (Finset.card_image_of_injective _ (add_right_injective Q₀)).ge
+    intro R hR
+    obtain ⟨Q, hQ, rfl⟩ := Finset.mem_image.mp hR
+    rw [Set.Finite.mem_toFinset] at hQ ⊢
+    exact C.add_mem hQ₀ hQ
   have himg : (hCfin.toFinset.erase 0).image (fun Q => Q₀ + Q) = hCfin.toFinset.erase Q₀ := by
-    ext R
-    simp only [Finset.mem_image, Finset.mem_erase, Set.Finite.mem_toFinset, SetLike.mem_coe]
-    constructor
-    · rintro ⟨Q, ⟨hQ0, hQC⟩, rfl⟩
-      exact ⟨fun hR => hQ0 (add_left_cancel (hR.trans (add_zero Q₀).symm)),
-        C.add_mem hQ₀ hQC⟩
-    · rintro ⟨hR0, hRC⟩
-      refine ⟨R - Q₀, ⟨?_, C.sub_mem hRC hQ₀⟩, by rw [add_comm, sub_add_cancel]⟩
-      intro h0
-      apply hR0
-      rw [← sub_add_cancel R Q₀, h0, zero_add]
+    rw [Finset.image_erase (add_right_injective Q₀), himgFull]
+    simp
   rw [hcoe, hcoe, Finset.sum_sub_distrib, Finset.sum_sub_distrib, herase0]
   have hre : ∑ Q ∈ hCfin.toFinset.erase 0, g (P + Q₀ + Q)
       = ∑ R ∈ hCfin.toFinset.erase Q₀, g (P + R) := by
@@ -984,9 +926,7 @@ theorem quotientPointFun_add [E.IsElliptic]
     rw [quotientPointFun_apply_of_mem K E C hh hP, quotientPointFun_apply_of_mem K E C hh hR,
       quotientPointFun_apply_of_mem K E C hh (C.add_mem hP hR), add_zero]
   · -- `P` in the kernel: translation invariance
-    have hPR : P + R ∉ C := fun hmem => hR (by
-      have h2 := C.sub_mem hmem hP
-      rwa [add_sub_cancel_left] at h2)
+    have hPR : P + R ∉ C := fun hmem => hR (by simpa using C.sub_mem hmem hP)
     rw [quotientPointFun_apply_of_mem K E C hh hP, zero_add,
       quotientPointFun_apply_of_notMem K E C hh hPR,
       quotientPointFun_apply_of_notMem K E C hh hR]
@@ -994,9 +934,7 @@ theorem quotientPointFun_add [E.IsElliptic]
     rw [add_comm P R]
     exact ⟨quotientX_add_mem K E C R hP, quotientY_add_mem K E C R hP⟩
   · -- `R` in the kernel: translation invariance
-    have hPR : P + R ∉ C := fun hmem => hP (by
-      have h2 := C.sub_mem hmem hR
-      rwa [add_sub_cancel_right] at h2)
+    have hPR : P + R ∉ C := fun hmem => hP (by simpa using C.sub_mem hmem hR)
     rw [quotientPointFun_apply_of_mem K E C hh hR, add_zero,
       quotientPointFun_apply_of_notMem K E C hh hPR,
       quotientPointFun_apply_of_notMem K E C hh hP]
