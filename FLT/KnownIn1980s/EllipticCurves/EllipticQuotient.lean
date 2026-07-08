@@ -92,30 +92,23 @@ agree everywhere: any `a` can be written `(a - b) + b` with both `b` and `a - b`
 theorem AddMonoidHom.eq_of_setOf_ne_finite {A B : Type*} [AddGroup A] [Infinite A]
     [AddZeroClass B] {ψ₁ ψ₂ : A →+ B} (h : {a : A | ψ₁ a ≠ ψ₂ a}.Finite) : ψ₁ = ψ₂ := by
   ext a
-  have hinj : Function.Injective fun b : A => a - b := fun b₁ b₂ hb => sub_right_inj.mp hb
-  have hfin : ({b : A | ψ₁ b ≠ ψ₂ b} ∪ (fun b : A => a - b) ⁻¹' {b : A | ψ₁ b ≠ ψ₂ b}).Finite :=
-    h.union (h.preimage hinj.injOn)
-  obtain ⟨b, hb⟩ := hfin.infinite_compl.nonempty
-  simp only [Set.mem_compl_iff, Set.mem_union, Set.mem_preimage, Set.mem_setOf_eq, ne_eq,
-    not_or, not_not] at hb
-  calc ψ₁ a = ψ₁ (a - b) + ψ₁ b := by rw [← map_add, sub_add_cancel]
-    _ = ψ₂ (a - b) + ψ₂ b := by rw [hb.2, hb.1]
-    _ = ψ₂ a := by rw [← map_add, sub_add_cancel]
+  have hinj : Function.Injective (a - · : A → A) := fun _ _ h' => sub_right_inj.mp h'
+  obtain ⟨b, hb⟩ := (h.union <| h.preimage hinj.injOn).infinite_compl.nonempty
+  simp only [Set.mem_compl_iff, Set.mem_union, Set.mem_preimage, Set.mem_setOf_eq, not_or,
+    not_not] at hb
+  rw [← sub_add_cancel a b, map_add, map_add, hb.1, hb.2]
 
 /-- A subgroup with finite complement in an infinite group is everything: a nontrivial
 coset would be an infinite subset of the finite complement. -/
 theorem AddSubgroup.eq_top_of_compl_finite {G : Type*} [AddGroup G] [Infinite G]
     (H : AddSubgroup G) (hfin : ((H : Set G)ᶜ).Finite) : H = ⊤ := by
-  have hH : (H : Set G).Infinite := by simpa using hfin.infinite_compl
   rw [AddSubgroup.eq_top_iff']
   intro g
   by_contra hg
-  have hsub : (fun x => g + x) '' (H : Set G) ⊆ (H : Set G)ᶜ := by
-    rintro _ ⟨x, hx, rfl⟩ hmem
-    refine hg ?_
-    have h2 := H.sub_mem (by simpa using hmem) hx
-    rwa [add_sub_cancel_right] at h2
-  exact (hH.image (add_right_injective g).injOn) (hfin.subset hsub)
+  have hH : (H : Set G).Infinite := by simpa using hfin.infinite_compl
+  refine (hH.image (add_right_injective g).injOn).mono ?_ hfin
+  rintro _ ⟨x, hx, rfl⟩ hmem
+  exact hg (by simpa using H.sub_mem hmem hx)
 
 namespace WeierstrassCurve
 
@@ -188,10 +181,9 @@ particular it vanishes at `x` exactly when `(x, y)` is a 2-torsion point. -/
 lemma twoTorsionPolynomial_toPoly_eval {W : WeierstrassCurve F} {x y : F}
     (hxy : W.toAffine.Equation x y) :
     W.twoTorsionPolynomial.toPoly.eval x = (2 * y + W.a₁ * x + W.a₃) ^ 2 := by
-  have h := (W.toAffine.equation_iff x y).mp hxy
-  simp only [twoTorsionPolynomial, Cubic.toPoly, Polynomial.eval_add, Polynomial.eval_mul,
-    Polynomial.eval_pow, Polynomial.eval_C, Polynomial.eval_X, b₂, b₄, b₆]
-  linear_combination -4 * h
+  simp only [twoTorsionPolynomial, Cubic.toPoly, eval_add, eval_mul, eval_pow, eval_C, eval_X,
+    b₂, b₄, b₆]
+  linear_combination -4 * (W.toAffine.equation_iff x y).mp hxy
 
 /-- In characteristic `2` an elliptic curve has `a₁ ≠ 0` or `a₃ ≠ 0`: both zero would force
 `b₂ = b₄ = b₆ = 0` and hence `Δ = 0`. -/
@@ -233,123 +225,71 @@ lemma twoTorsionPolynomial_toPoly_ne_zero (W : WeierstrassCurve F) [W.IsElliptic
     exact h2 (mul_self_eq_zero.mp h22)
 
 /-- A separably closed field is infinite: over a finite field with `q` elements the
-polynomial `X^q − X + 1` is separable (its derivative is `−1`) but has no root. -/
+polynomial `X^(q+1) − 1` is separable, so it would have `q + 1` distinct roots. -/
 theorem infinite_of_isSepClosed [IsSepClosed F] : Infinite F := by
-  by_contra hinf
-  rw [not_infinite_iff_finite] at hinf
-  haveI := Fintype.ofFinite F
-  have hchar : (Fintype.card F : F) = 0 := Nat.cast_card_eq_zero F
-  set p : F[X] := X ^ Fintype.card F - X + 1 with hp
-  have hderiv : Polynomial.derivative p = -1 := by
-    rw [hp]
-    simp [Polynomial.derivative_X_pow, hchar]
-  have hsep : p.Separable := by
-    rw [Polynomial.separable_def, hderiv]
-    exact (isCoprime_one_right).neg_right
-  have hdegeq : p.degree = Fintype.card F := by
-    have hlt : (1 - X : F[X]).degree < ((X : F[X]) ^ Fintype.card F).degree := by
-      rw [Polynomial.degree_X_pow,
-        show (1 - X : F[X]) = -(X - Polynomial.C 1) by rw [Polynomial.C_1]; ring,
-        Polynomial.degree_neg, Polynomial.degree_X_sub_C]
-      exact_mod_cast Fintype.one_lt_card
-    rw [hp, show (X ^ Fintype.card F - X + 1 : F[X]) = X ^ Fintype.card F + (1 - X) by ring,
-      Polynomial.degree_add_eq_left_of_degree_lt hlt, Polynomial.degree_X_pow]
-  obtain ⟨a, ha⟩ := IsSepClosed.exists_root p
-    (by rw [hdegeq]; exact_mod_cast Fintype.card_ne_zero) hsep
-  have hq := FiniteField.pow_card a
-  simp [hp, hq] at ha
+  apply Infinite.of_not_fintype
+  intro hfin
+  set f : F[X] := X ^ (Fintype.card F + 1) - C 1 with hf
+  have hsep : f.Separable :=
+    separable_X_pow_sub_C 1 (by simp [Nat.cast_card_eq_zero]) one_ne_zero
+  refine Nat.not_succ_le_self (Fintype.card F) ?_
+  calc Fintype.card F + 1 = Fintype.card (f.rootSet F) := by
+        rw [card_rootSet_eq_natDegree hsep (IsSepClosed.splits_domain f hsep),
+          natDegree_X_pow_sub_C]
+    _ ≤ Fintype.card F := Fintype.card_le_of_injective _ Subtype.coe_injective
 
 /-- Over a separably closed field every monic quadratic `y² + by = c` with `2 ≠ 0` or
-`b ≠ 0` has a root: complete the square in characteristic `≠ 2`, and reduce to a separable
-Artin–Schreier equation in characteristic `2`. -/
+`b ≠ 0` has a root: complete the square in characteristic `≠ 2`, and use the separable
+Artin–Schreier-type equation `y² + by − c = 0` in characteristic `2`. -/
 lemma exists_quadratic_root [IsSepClosed F] (b c : F) (hbc : (2 : F) ≠ 0 ∨ b ≠ 0) :
     ∃ y : F, y ^ 2 + b * y = c := by
   rcases eq_or_ne (2 : F) 0 with h2 | h2
-  · -- characteristic 2: Artin–Schreier `z² + z = c/b²`, then `y = bz`
-    have hb : b ≠ 0 := hbc.resolve_left fun h => h h2
-    have h2' : (2 : F[X]) = 0 := by
-      rw [← map_ofNat (Polynomial.C : F →+* F[X]) 2, h2, map_zero]
-    have hder : Polynomial.derivative (X ^ 2 + X - Polynomial.C (c / b ^ 2) : F[X]) = 1 := by
-      simp
-      linear_combination h2'
-    have hsep : (X ^ 2 + X - Polynomial.C (c / b ^ 2) : F[X]).Separable := by
-      rw [Polynomial.separable_def, hder]
-      exact isCoprime_one_right
-    have hdeg : (X ^ 2 + X - Polynomial.C (c / b ^ 2) : F[X]).degree ≠ 0 := by
-      rw [show (X ^ 2 + X - Polynomial.C (c / b ^ 2) : F[X])
-          = X ^ 2 + (X - Polynomial.C (c / b ^ 2)) by ring,
-        Polynomial.degree_add_eq_left_of_degree_lt (by
-          rw [Polynomial.degree_X_pow, Polynomial.degree_X_sub_C]; decide),
-        Polynomial.degree_X_pow]
-      decide
-    obtain ⟨z, hz⟩ := IsSepClosed.exists_root _ hdeg hsep
-    refine ⟨b * z, ?_⟩
-    have hz' : z ^ 2 + z = c / b ^ 2 := by
-      simp only [Polynomial.IsRoot, Polynomial.eval_sub, Polynomial.eval_add,
-        Polynomial.eval_pow, Polynomial.eval_X, Polynomial.eval_C, sub_eq_zero] at hz
-      linear_combination hz
-    rw [eq_div_iff (pow_ne_zero 2 hb)] at hz'
-    linear_combination hz'
-  · -- characteristic ≠ 2: complete the square with `s² = b² + 4c`
-    have hsq : ∃ s : F, s ^ 2 = b ^ 2 + 4 * c := by
-      rcases eq_or_ne (b ^ 2 + 4 * c) 0 with h0 | h0
-      · exact ⟨0, by rw [h0]; ring⟩
-      · obtain ⟨s, hs⟩ := IsSepClosed.exists_root (X ^ 2 - Polynomial.C (b ^ 2 + 4 * c))
-          (by rw [Polynomial.degree_X_pow_sub_C (by norm_num : 0 < 2)]; decide)
-          (Polynomial.separable_X_pow_sub_C _ (by exact_mod_cast h2) h0)
-        refine ⟨s, ?_⟩
-        simpa [sub_eq_zero] using hs
-    obtain ⟨s, hs⟩ := hsq
-    refine ⟨(s - b) / 2, ?_⟩
-    field_simp
-    linear_combination hs
+  · -- characteristic 2: `X² + bX − c` is separable since its derivative is `b ≠ 0`
+    obtain ⟨y, hy⟩ := IsSepClosed.exists_root_C_mul_X_pow_add_C_mul_X_add_C 1 b (-c)
+      (by exact_mod_cast h2) le_rfl (hbc.resolve_left fun h => h h2)
+    exact ⟨y, by linear_combination hy⟩
+  · -- characteristic ≠ 2: complete the square with a square root of `b² + 4c`
+    haveI : NeZero ((2 : ℕ) : F) := ⟨by exact_mod_cast h2⟩
+    obtain ⟨s, hs⟩ := IsSepClosed.exists_pow_nat_eq (b ^ 2 + 4 * c) 2
+    exact ⟨(s - b) / 2, by field_simp; linear_combination hs⟩
 
-/-- **An elliptic curve over a separably closed field has infinitely many points**: for all
-but finitely many `x` the Weierstrass quadratic in `y` has a root in `F`
-(`exists_quadratic_root`; the finitely many exceptions are the roots of `a₁X + a₃` in
-characteristic `2`), every equation point is nonsingular (`equation_iff_nonsingular`), and
-distinct `x`'s give distinct points, so the infinite set of good `x`'s injects into the
+/-- If `2 ≠ 0` or `a₁x + a₃ ≠ 0`, then `x` is the x-coordinate of a point of the curve: the
+Weierstrass quadratic in `y` has a root by `exists_quadratic_root`, and every equation point
+of an elliptic curve is nonsingular. -/
+lemma Affine.exists_nonsingular [IsSepClosed F] (W : WeierstrassCurve F) [W.IsElliptic]
+    {x : F} (hx : (2 : F) ≠ 0 ∨ W.a₁ * x + W.a₃ ≠ 0) :
+    ∃ y : F, W.toAffine.Nonsingular x y := by
+  obtain ⟨y, hy⟩ := exists_quadratic_root (W.a₁ * x + W.a₃)
+    (x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆) hx
+  exact ⟨y, W.toAffine.equation_iff_nonsingular.mp <| (W.toAffine.equation_iff x y).mpr <| by
+    linear_combination hy⟩
+
+/-- **An elliptic curve over a separably closed field has infinitely many points**: all but
+finitely many `x` are x-coordinates of points (`Affine.exists_nonsingular`; the exceptions
+are the roots of `a₁X + a₃` in characteristic `2`), and distinct `x`'s give distinct
 points. -/
 theorem Affine.Point.infinite [IsSepClosed F] (W : WeierstrassCurve F) [W.IsElliptic] :
     Infinite W.toAffine.Point := by
   haveI : Infinite F := infinite_of_isSepClosed
-  -- an infinite set of x-coordinates over which the quadratic in `y` is solvable
-  obtain ⟨S, hSinf, hSgood⟩ : ∃ S : Set F, S.Infinite ∧
-      ∀ x ∈ S, (2 : F) ≠ 0 ∨ W.a₁ * x + W.a₃ ≠ 0 := by
+  -- all but finitely many `x` satisfy the solvability hypothesis of `exists_nonsingular`
+  have hgood : {x : F | (2 : F) ≠ 0 ∨ W.a₁ * x + W.a₃ ≠ 0}.Infinite := by
     rcases eq_or_ne (2 : F) 0 with h2 | h2
-    · refine ⟨{x | W.a₁ * x + W.a₃ = 0}ᶜ, Set.Finite.infinite_compl ?_,
-        fun x hx => Or.inr hx⟩
-      have hor := a₁_ne_zero_or_a₃_ne_zero W h2
-      have hne : (Polynomial.C W.a₁ * X + Polynomial.C W.a₃ : F[X]) ≠ 0 := by
-        intro h0
-        have h1 := congrArg (fun q => Polynomial.coeff q 1) h0
-        have h0' := congrArg (fun q => Polynomial.coeff q 0) h0
-        simp only [Polynomial.coeff_add, Polynomial.coeff_C_mul, Polynomial.coeff_X,
-          Polynomial.coeff_C, Polynomial.coeff_zero] at h1 h0'
-        norm_num at h1 h0'
-        rcases hor with h | h
-        · exact h h1
-        · exact h h0'
-      refine (Polynomial.finite_setOf_isRoot hne).subset ?_
-      intro x hx
-      simp only [Set.mem_setOf_eq] at hx ⊢
-      simp [hx]
-    · exact ⟨Set.univ, Set.infinite_univ, fun x _ => Or.inl h2⟩
-  -- for each good `x` pick a point on the curve with that x-coordinate
-  have hpt : ∀ x ∈ S, ∃ y : F, W.toAffine.Nonsingular x y := by
-    intro x hx
-    obtain ⟨y, hy⟩ := exists_quadratic_root (W.a₁ * x + W.a₃)
-      (x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆) (hSgood x hx)
-    refine ⟨y, W.toAffine.equation_iff_nonsingular.mp ?_⟩
-    rw [W.toAffine.equation_iff]
-    linear_combination hy
-  choose f hf using hpt
-  haveI : Infinite ↥S := hSinf.to_subtype
-  refine Infinite.of_injective
-    (fun x : S => Affine.Point.some x.1 (f x.1 x.2) (hf x.1 x.2)) ?_
-  rintro ⟨x₁, hx₁⟩ ⟨x₂, hx₂⟩ hEq
-  simp only [Affine.Point.some.injEq] at hEq
-  exact Subtype.ext hEq.1
+    · have hfin : {x : F | W.a₁ * x + W.a₃ = 0}.Finite := by
+        rcases eq_or_ne W.a₁ 0 with h1 | h1
+        · have h3 := (a₁_ne_zero_or_a₃_ne_zero W h2).resolve_left (not_not_intro h1)
+          simp [h1, h3]
+        · refine Set.Subsingleton.finite fun x hx y hy => mul_left_cancel₀ h1 ?_
+          simp only [Set.mem_setOf_eq] at hx hy
+          linear_combination hx - hy
+      simpa [h2, Set.compl_setOf] using hfin.infinite_compl
+    · simpa [h2] using Set.infinite_univ (α := F)
+  choose y hy using fun x : {x : F | (2 : F) ≠ 0 ∨ W.a₁ * x + W.a₃ ≠ 0} =>
+    Affine.exists_nonsingular W x.2
+  haveI := hgood.to_subtype
+  refine Infinite.of_injective (fun x => Affine.Point.some x.1 (y x) (hy x))
+    fun x₁ x₂ h => ?_
+  simp only [Affine.Point.some.injEq] at h
+  exact Subtype.ext h.1
 
 end Preliminaries
 
