@@ -5,6 +5,7 @@ Authors: Kevin Buzzard
 -/
 module
 
+public import Mathlib.Algebra.BigOperators.Finprod
 public import Mathlib.Algebra.Polynomial.Lifts
 public import Mathlib.AlgebraicGeometry.EllipticCurve.Affine.Point
 public import Mathlib.FieldTheory.Finite.Basic
@@ -36,20 +37,26 @@ definitions, easier proofs). Each definition is either explicit polynomial arith
 named `sorry` isolating one known formula.
 
 ## Where the remaining difficulty lives (the honest list)
-  1. `velTEven`, `velWEven` — Kohel's 2-torsion corrections, now isolated to a factor of
-     degree `≤ 3`: `velT`/`velW` are REAL definitions (power-sum formulas on the odd factor,
-     proved exact in the two-torsion-free case: `velT_spec`, `velW_spec` are theorems via
-     `IsKernelPolynomial.twoTorsionFactor_eq_one`), and only the correction on the
-     2-torsion factor `gcd(h, ψ₂²)` is sorried. Beware: in characteristic `2` the
-     correction involves the `y`-coordinate of the 2-torsion point, a square root of an
-     expression in the coefficients (in `k` for factors arising from Galois-stable kernels,
-     but not polynomial in `h`).
+  1. `velTEven`, `velWEven` — Kohel's 2-torsion corrections, now isolated to the
+     CHARACTERISTIC-2 branch on a factor of degree `≤ 3`: `velT`/`velW` are REAL
+     definitions (power-sum formulas on the odd factor, proved exact in the
+     two-torsion-free case: `velT_spec`, `velW_spec` are theorems via
+     `IsKernelPolynomial.twoTorsionFactor_eq_one`; sanity check `quotientCurve_one`), the
+     corrections on the 2-torsion factor `gcd(h, ψ₂²)` are real in characteristic `≠ 2`
+     (half the paired power sums), and only the characteristic-2 branch is sorried — there
+     the correction involves the `y`-coordinate of the 2-torsion point, a square root (in
+     `k` for factors arising from Galois-stable kernels, but not polynomial in `h`).
   2. `isElliptic_quotientCurve` — nonvanishing of the quotient discriminant.
-  3. The quotient-map data and its three specs: `quotientPhiX`/`quotientPhiYLin`/
-     `quotientPhiYConst` (rational maps, denominators `h²`, `h³`), `quotientPointHom` (the
-     point map with its additivity), and `quotientPointHom_some` (coherence),
-     `surjective_quotientPointHom`, `ker_quotientPointHom` — the algebraic heart, over `k`.
-     `quotientIsogeny` itself and `ker_quotientIsogeny` are proved assemblies of these.
+  3. `nonsingular_quotientX_quotientY` (the computational heart of Vélu's theorem: the
+     translate sums land on the quotient curve) and `quotientPointFun_add` (rigidity —
+     the `C`-invariance first step is proved, `quotientX_add_mem`/`quotientY_add_mem`) —
+     the two property leaves of the now-REAL quotient point map `quotientPointHom`
+     (Vélu's translate sums; its kernel `ker_quotientPointHom` is proved, and its
+     surjectivity is proved modulo the cofinite-range leaf
+     `finite_compl_range_quotientPointHom` via `AddSubgroup.eq_top_of_compl_finite`).
+  4. `quotientPhiX`/`quotientPhiYLin`/`quotientPhiYConst` (the rational maps over `k`,
+     denominators `h²`, `h³`) and `quotientPointHom_some` (coherence of the point map with
+     them, off the poles).
 
 Everything else is **proved** below: §§0–2 in full — including `Affine.Point.infinite`
 (an elliptic curve over a separably closed field has infinitely many points, via separable
@@ -93,6 +100,21 @@ theorem AddMonoidHom.eq_of_setOf_ne_finite {A B : Type*} [AddGroup A] [Infinite 
   calc ψ₁ a = ψ₁ (a - b) + ψ₁ b := by rw [← map_add, sub_add_cancel]
     _ = ψ₂ (a - b) + ψ₂ b := by rw [hb.2, hb.1]
     _ = ψ₂ a := by rw [← map_add, sub_add_cancel]
+
+/-- A subgroup with finite complement in an infinite group is everything: a nontrivial
+coset would be an infinite subset of the finite complement. -/
+theorem AddSubgroup.eq_top_of_compl_finite {G : Type*} [AddGroup G] [Infinite G]
+    (H : AddSubgroup G) (hfin : ((H : Set G)ᶜ).Finite) : H = ⊤ := by
+  have hH : (H : Set G).Infinite := by simpa using hfin.infinite_compl
+  rw [AddSubgroup.eq_top_iff']
+  intro g
+  by_contra hg
+  have hsub : (fun x => g + x) '' (H : Set G) ⊆ (H : Set G)ᶜ := by
+    rintro _ ⟨x, hx, rfl⟩ hmem
+    refine hg ?_
+    have h2 := H.sub_mem (by simpa using hmem) hx
+    rwa [add_sub_cancel_right] at h2
+  exact (hH.image (add_right_injective g).injOn) (hfin.subset hsub)
 
 namespace WeierstrassCurve
 
@@ -143,6 +165,16 @@ lemma Affine.Point.finite_setOf_xCoord_mem {W : Affine F} {s : Set F} (hs : s.Fi
     change (x, y) = (x', y') at h
     obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp h
     rfl
+
+/-- The x-coordinate of an affine point, with junk value `0` at the point at infinity. -/
+def Affine.Point.xCoord {W : Affine F} : W.Point → F
+  | .zero => 0
+  | .some x _ _ => x
+
+/-- The y-coordinate of an affine point, with junk value `0` at the point at infinity. -/
+def Affine.Point.yCoord {W : Affine F} : W.Point → F
+  | .zero => 0
+  | .some _ y _ => y
 
 /-- The 2-torsion polynomial commutes with `map`. -/
 lemma map_twoTorsionPolynomial {F' : Type*} [Field F'] (W : WeierstrassCurve F)
@@ -553,18 +585,30 @@ noncomputable def velWOdd (E : WeierstrassCurve k) (h : k[X]) : k :=
     + 2 * E.b₂ * (velS₁ h ^ 2 - 2 * velS₂ h) + 3 * E.b₄ * velS₁ h + h.natDegree * E.b₆
 
 open Classical in
-/-- Kohel's 2-torsion correction to Vélu's `t`, as a function of the 2-torsion factor `g`.
-SORRY-DEF (the remaining formula work of item 1, now isolated to `deg g ≤ 3`): the sum of
-`gˣ_Q = 3x₀² + 2a₂x₀ + a₄ − a₁y₀` over the roots `x₀` of `g` (Kohel's thesis §2.4). Guarded
-to vanish on the trivial factor, so the two-torsion-free case is exact by definition. -/
+/-- Kohel's 2-torsion correction to Vélu's `t`, as a function of the 2-torsion factor `g`:
+the sum of `gˣ_Q = 3x₀² + 2a₂x₀ + a₄ − a₁y₀` over the roots `x₀` of `g` (Kohel's thesis
+§2.4). In characteristic `≠ 2` the 2-torsion point above `x₀` has `y₀ = −(a₁x₀ + a₃)/2`,
+giving `gˣ_Q = (6x₀² + b₂x₀ + b₄)/2` — half the paired contribution — so the correction is
+the power-sum expression `(6(s₁² − 2s₂) + b₂s₁ + m·b₄)/2` in the coefficients of `g`
+(REAL definition). The remaining SORRY is the characteristic-2 branch only, where `y₀` is a
+square root of `x₀³ + a₂x₀² + a₄x₀ + a₆` (an element of `k` for factors arising from
+Galois-stable kernels, but not polynomial in `g`). Guarded to vanish on the trivial factor,
+so the two-torsion-free case is exact by definition. -/
 noncomputable def velTEven (E : WeierstrassCurve k) (g : k[X]) : k :=
-  if g = 1 then 0 else sorry
+  if g = 1 then 0
+  else if (2 : k) = 0 then sorry
+  else (6 * (velS₁ g ^ 2 - 2 * velS₂ g) + E.b₂ * velS₁ g + g.natDegree * E.b₄) / 2
 
 open Classical in
-/-- Kohel's 2-torsion correction to Vélu's `w`. SORRY-DEF, same status as `velTEven`
-(the per-root contribution is `x₀·gˣ_Q`, since `gʸ_Q = 0` for 2-torsion points). -/
+/-- Kohel's 2-torsion correction to Vélu's `w`: since `gʸ_Q = 0` for 2-torsion points, the
+per-root contribution is `x₀·gˣ_Q`, so in characteristic `≠ 2` it is the power-sum
+expression `(6p₃ + b₂p₂ + b₄p₁)/2` (REAL definition). The remaining SORRY is the
+characteristic-2 branch only, as in `velTEven`. -/
 noncomputable def velWEven (E : WeierstrassCurve k) (g : k[X]) : k :=
-  if g = 1 then 0 else sorry
+  if g = 1 then 0
+  else if (2 : k) = 0 then sorry
+  else (6 * (velS₁ g ^ 3 - 3 * velS₁ g * velS₂ g + 3 * velS₃ g)
+    + E.b₂ * (velS₁ g ^ 2 - 2 * velS₂ g) + E.b₄ * velS₁ g) / 2
 
 @[simp] lemma velTEven_one (E : WeierstrassCurve k) : velTEven E 1 = 0 := if_pos rfl
 
@@ -587,6 +631,22 @@ noncomputable def quotientCurve (E : WeierstrassCurve k) (h : k[X]) : Weierstras
   a₃ := E.a₃
   a₄ := E.a₄ - 5 * velT E h
   a₆ := E.a₆ - E.b₂ * velT E h - 7 * velW E h
+
+@[simp] lemma twoTorsionFactor_one (E : WeierstrassCurve k) : twoTorsionFactor E 1 = 1 := by
+  classical
+  rw [twoTorsionFactor, EuclideanDomain.gcd_one_left]
+  simp
+
+@[simp] lemma velT_one (E : WeierstrassCurve k) : velT E (1 : k[X]) = 0 := by
+  simp [velT, velTOdd, oddFactor, Polynomial.divByMonic_one, velS₁, velS₂]
+
+@[simp] lemma velW_one (E : WeierstrassCurve k) : velW E (1 : k[X]) = 0 := by
+  simp [velW, velWOdd, oddFactor, Polynomial.divByMonic_one, velS₁, velS₂, velS₃]
+
+/-- Sanity check for the decomposed definitions: the quotient of `E` by the trivial kernel
+polynomial is `E` itself. -/
+@[simp] theorem quotientCurve_one (E : WeierstrassCurve k) : quotientCurve E 1 = E := by
+  ext <;> simp [quotientCurve]
 
 /-- x-coordinate rational map of the quotient isogeny. SORRY-DEF (data leaf, item 3 of the
 header list): denominator `h²`, numerator determined by `E` and `h` (Kohel §2.4; Washington
@@ -804,15 +864,144 @@ end Isogeny
 
 /-! ## §5 The quotient isogeny and the main theorem -/
 
-/-- **The quotient point map** `E(K) →+ (E/C)(K)`. SORRY-DEF (data leaf, item 3): Vélu's
-`P ↦ (x(P) + Σ_{Q ∈ C∖0} (x(P+Q) − x(Q)), …)` computed with the group law of `E`, sending
-`C ↦ 0`, bundled with additivity. The previous architecture (`git show HEAD` on this file,
-`veluMap`) constructs exactly this map over `kˢᵉᵖ`. -/
+/-- The x-coordinate of Vélu's isogeny, as a function on points of `E` over `K`:
+`X(P) = x(P) + Σ_{Q ∈ C∖{0}} (x(P+Q) − x(Q))`, computed with the group law of `E`. The
+rational expression `quotientPhiX` is its closed form. Junk when `P ∈ C`. -/
+noncomputable def quotientX (C : AddSubgroup (E⁄K).Point) (P : (E⁄K).Point) : K :=
+  P.xCoord + ∑ᶠ Q ∈ (C : Set (E⁄K).Point) \ {0}, ((P + Q).xCoord - Q.xCoord)
+
+/-- The y-coordinate of Vélu's isogeny, as a function on points of `E` over `K`:
+`Y(P) = y(P) + Σ_{Q ∈ C∖{0}} (y(P+Q) − y(Q))`. Junk when `P ∈ C`. -/
+noncomputable def quotientY (C : AddSubgroup (E⁄K).Point) (P : (E⁄K).Point) : K :=
+  P.yCoord + ∑ᶠ Q ∈ (C : Set (E⁄K).Point) \ {0}, ((P + Q).yCoord - Q.yCoord)
+
+omit [IsSepClosure k K] in
+/-- Translate-sum invariance: for any coordinate function `g` and `Q₀ ∈ C`, the Vélu-style
+sum `g(P) + Σ_{Q ∈ C∖0} (g(P+Q) − g(Q))` is unchanged by `P ↦ P + Q₀`: both sides equal
+`Σ_{Q ∈ C} g(P+Q) − Σ_{Q ∈ C∖0} g(Q)`. This is the first step of the additivity leaf and
+the well-definedness of the induced map on `E(K)/C`. -/
+theorem translate_finsum_add_mem (C : AddSubgroup (E⁄K).Point) [Finite C]
+    (g : (E⁄K).Point → K) (P : (E⁄K).Point) {Q₀ : (E⁄K).Point} (hQ₀ : Q₀ ∈ C) :
+    g (P + Q₀) + ∑ᶠ Q ∈ (C : Set (E⁄K).Point) \ {0}, (g (P + Q₀ + Q) - g Q)
+      = g P + ∑ᶠ Q ∈ (C : Set (E⁄K).Point) \ {0}, (g (P + Q) - g Q) := by
+  classical
+  rcases eq_or_ne Q₀ 0 with rfl | hQ₀0
+  · simp only [add_zero]
+  have hCfin : (C : Set (E⁄K).Point).Finite := Set.toFinite _
+  have hdfin : ((C : Set (E⁄K).Point) \ {0}).Finite := hCfin.sdiff
+  have hcoe : ∀ f : (E⁄K).Point → K,
+      (∑ᶠ Q ∈ (C : Set (E⁄K).Point) \ {0}, f Q) = ∑ Q ∈ hdfin.toFinset, f Q := fun f => by
+    rw [← finsum_mem_coe_finset, Set.Finite.coe_toFinset]
+  -- the difference-set is the full finset with `0` erased
+  have herase0 : hdfin.toFinset = hCfin.toFinset.erase 0 := by
+    ext Q
+    simp only [Set.Finite.mem_toFinset, Set.mem_sdiff, Set.mem_singleton_iff,
+      Finset.mem_erase, and_comm]
+  -- translation by `Q₀` permutes `C`, matching `C ∖ {0}` with `C ∖ {Q₀}`
+  have himg : (hCfin.toFinset.erase 0).image (fun Q => Q₀ + Q) = hCfin.toFinset.erase Q₀ := by
+    ext R
+    simp only [Finset.mem_image, Finset.mem_erase, Set.Finite.mem_toFinset, SetLike.mem_coe]
+    constructor
+    · rintro ⟨Q, ⟨hQ0, hQC⟩, rfl⟩
+      exact ⟨fun hR => hQ0 (add_left_cancel (hR.trans (add_zero Q₀).symm)),
+        C.add_mem hQ₀ hQC⟩
+    · rintro ⟨hR0, hRC⟩
+      refine ⟨R - Q₀, ⟨?_, C.sub_mem hRC hQ₀⟩, by rw [add_comm, sub_add_cancel]⟩
+      intro h0
+      apply hR0
+      rw [← sub_add_cancel R Q₀, h0, zero_add]
+  rw [hcoe, hcoe, Finset.sum_sub_distrib, Finset.sum_sub_distrib, herase0]
+  have hre : ∑ Q ∈ hCfin.toFinset.erase 0, g (P + Q₀ + Q)
+      = ∑ R ∈ hCfin.toFinset.erase Q₀, g (P + R) := by
+    rw [← himg, Finset.sum_image fun x _ y _ hxy => add_right_injective Q₀ hxy]
+    exact Finset.sum_congr rfl fun Q _ => by rw [add_assoc]
+  rw [hre]
+  -- with `Q₀` (resp. `0`) reinserted, both translated sums are `Σ_{Q ∈ C} g (P + Q)`
+  have hQ₀mem : Q₀ ∈ hCfin.toFinset := (Set.Finite.mem_toFinset _).mpr hQ₀
+  have h0mem : (0 : (E⁄K).Point) ∈ hCfin.toFinset := (Set.Finite.mem_toFinset _).mpr C.zero_mem
+  have hfull : g (P + Q₀) + ∑ R ∈ hCfin.toFinset.erase Q₀, g (P + R)
+      = g P + ∑ Q ∈ hCfin.toFinset.erase 0, g (P + Q) := by
+    calc g (P + Q₀) + ∑ R ∈ hCfin.toFinset.erase Q₀, g (P + R)
+        = ∑ R ∈ hCfin.toFinset, g (P + R) :=
+          Finset.add_sum_erase _ (fun R => g (P + R)) hQ₀mem
+      _ = g (P + 0) + ∑ Q ∈ hCfin.toFinset.erase 0, g (P + Q) :=
+          (Finset.add_sum_erase _ (fun R => g (P + R)) h0mem).symm
+      _ = g P + ∑ Q ∈ hCfin.toFinset.erase 0, g (P + Q) := by rw [add_zero]
+  linear_combination hfull
+
+omit [IsSepClosure k K] in
+/-- `C`-invariance of Vélu's x-coordinate function (instance of
+`translate_finsum_add_mem`). -/
+theorem quotientX_add_mem (C : AddSubgroup (E⁄K).Point) [Finite C] (P : (E⁄K).Point)
+    {Q₀ : (E⁄K).Point} (hQ₀ : Q₀ ∈ C) :
+    quotientX K E C (P + Q₀) = quotientX K E C P := by
+  simpa only [quotientX] using
+    translate_finsum_add_mem K E C (fun R => R.xCoord) P hQ₀
+
+omit [IsSepClosure k K] in
+/-- `C`-invariance of Vélu's y-coordinate function. -/
+theorem quotientY_add_mem (C : AddSubgroup (E⁄K).Point) [Finite C] (P : (E⁄K).Point)
+    {Q₀ : (E⁄K).Point} (hQ₀ : Q₀ ∈ C) :
+    quotientY K E C (P + Q₀) = quotientY K E C P := by
+  simpa only [quotientY] using
+    translate_finsum_add_mem K E C (fun R => R.yCoord) P hQ₀
+
+omit [IsSepClosure k K] in
+/-- Nonsingularity leaf (the computational heart of Vélu's theorem): for `P ∉ C` the
+translate sums `(X(P), Y(P))` land at a nonsingular point of the quotient curve. This leaf
+also carries the correctness of the (sorried) `velTEven`/`velWEven` corrections, since the
+quotient curve is built from `velT`/`velW`. -/
+theorem nonsingular_quotientX_quotientY [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) {P : (E⁄K).Point} (hP : P ∉ C) :
+    ((quotientCurve E h)⁄K).Nonsingular (quotientX K E C P) (quotientY K E C P) :=
+  sorry
+
+open Classical in
+/-- The underlying function of the quotient point map: `C ↦ 0`, and `P ↦ (X(P), Y(P))` for
+`P ∉ C`. REAL definition (given the nonsingularity leaf). -/
+noncomputable def quotientPointFun [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) (P : (E⁄K).Point) :
+    ((quotientCurve E h)⁄K).Point :=
+  if hP : P ∈ C then 0
+  else Affine.Point.some _ _ (nonsingular_quotientX_quotientY K E C hh hP)
+
+omit [IsSepClosure k K] in
+theorem quotientPointFun_apply_of_mem [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) {P : (E⁄K).Point} (hP : P ∈ C) :
+    quotientPointFun K E C hh P = 0 :=
+  dif_pos hP
+
+omit [IsSepClosure k K] in
+theorem quotientPointFun_apply_of_notMem [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) {P : (E⁄K).Point} (hP : P ∉ C) :
+    quotientPointFun K E C hh P
+      = Affine.Point.some _ _ (nonsingular_quotientX_quotientY K E C hh hP) :=
+  dif_neg hP
+
+omit [IsSepClosure k K] in
+/-- Additivity leaf (the deepest: rigidity). On paper: `(X, Y)` are `C`-invariant functions
+on `E` (proved: `quotientX_add_mem`, `quotientY_add_mem`), so `quotientPointFun` descends
+to a morphism of curves `E/C → E'` sending `0` to `0`, hence is a group homomorphism. -/
+theorem quotientPointFun_add [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) (P R : (E⁄K).Point) :
+    quotientPointFun K E C hh (P + R)
+      = quotientPointFun K E C hh P + quotientPointFun K E C hh R :=
+  sorry
+
+/-- **The quotient point map** `E(K) →+ (E/C)(K)` — now a REAL definition: Vélu's translate
+sums bundled with the additivity leaf. -/
 noncomputable def quotientPointHom [E.IsElliptic]
     (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
     (hh : IsKernelPolynomial K E C h) :
-    (E⁄K).Point →+ ((quotientCurve E h)⁄K).Point :=
-  sorry
+    (E⁄K).Point →+ ((quotientCurve E h)⁄K).Point where
+  toFun := quotientPointFun K E C hh
+  map_zero' := quotientPointFun_apply_of_mem K E C hh (zero_mem C)
+  map_add' := quotientPointFun_add K E C hh
 
 /-- Coherence leaf: away from the roots of `h` (the poles of `φx`), the quotient point map
 is given by evaluating the rational maps `quotientPhiX`/`quotientPhiYLin`/
@@ -831,22 +1020,48 @@ theorem quotientPointHom_some [E.IsElliptic]
       quotientPointHom K E C hh (Affine.Point.some x y hxy) = Affine.Point.some _ _ hxy' :=
   sorry
 
-/-- Surjectivity leaf: the quotient isogeny is separable (its kernel consists of honest
-`K`-points), and separable isogenies are surjective on points over a separably closed
-field. -/
+/-- Cofinite-range leaf: all but finitely many points of the quotient curve are in the
+image of the quotient point map. (The quotient isogeny is separable — its kernel consists
+of honest `K`-points — so away from finitely many branch points the fiber equations are
+separable and their solutions over `K = kˢᵉᵖ` are `K`-rational.) Full surjectivity follows
+by pure group theory (`AddSubgroup.eq_top_of_compl_finite`), so ramified points need no
+separate analysis. -/
+theorem finite_compl_range_quotientPointHom [E.IsElliptic]
+    (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
+    (hh : IsKernelPolynomial K E C h) :
+    (((quotientPointHom K E C hh).range : Set ((quotientCurve E h)⁄K).Point)ᶜ).Finite :=
+  sorry
+
+/-- Surjectivity — now a theorem, from the cofinite-range leaf: the range is a subgroup
+with finite complement in the (infinite, by `Affine.Point.infinite`) group of points of the
+quotient curve, hence everything. -/
 theorem surjective_quotientPointHom [E.IsElliptic]
     (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
     (hh : IsKernelPolynomial K E C h) :
-    Function.Surjective (quotientPointHom K E C hh) :=
-  sorry
+    Function.Surjective (quotientPointHom K E C hh) := by
+  haveI : IsSepClosed K := IsSepClosure.sep_closed k
+  haveI : (quotientCurve E h).IsElliptic := isElliptic_quotientCurve K E C hh
+  haveI : ((quotientCurve E h)⁄K).IsElliptic :=
+    inferInstanceAs (((quotientCurve E h).map (algebraMap k K)).IsElliptic)
+  haveI : Infinite ((quotientCurve E h)⁄K).Point :=
+    Affine.Point.infinite ((quotientCurve E h)⁄K)
+  rw [← AddMonoidHom.range_eq_top]
+  exact AddSubgroup.eq_top_of_compl_finite _ (finite_compl_range_quotientPointHom K E C hh)
 
-/-- Kernel leaf: the kernel of the quotient point map is exactly `C` — the statement that
-`φx` has a pole exactly at the roots of `h`, i.e. at `x(C ∖ {0})`. -/
+omit [IsSepClosure k K] in
+/-- Kernel — now a theorem: points of `C` map to `0` by definition, and points outside `C`
+map to affine points, which are nonzero. -/
 theorem ker_quotientPointHom [E.IsElliptic]
     (C : AddSubgroup (E⁄K).Point) [Finite C] {h : k[X]}
     (hh : IsKernelPolynomial K E C h) :
-    (quotientPointHom K E C hh).ker = C :=
-  sorry
+    (quotientPointHom K E C hh).ker = C := by
+  ext P
+  rw [AddMonoidHom.mem_ker]
+  refine ⟨fun h0 => ?_, fun hP => quotientPointFun_apply_of_mem K E C hh hP⟩
+  by_contra hP
+  rw [show quotientPointHom K E C hh P = quotientPointFun K E C hh P from rfl,
+    quotientPointFun_apply_of_notMem K E C hh hP] at h0
+  exact Affine.Point.some_ne_zero _ h0
 
 /-- **The quotient isogeny `E → E/C`** — a REAL assembly of the data leaves
 (`quotientPhiX/YLin/YConst`, `quotientPointHom`) and the property leaves
