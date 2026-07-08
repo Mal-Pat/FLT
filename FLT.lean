@@ -34,7 +34,6 @@ public import FLT.Deformations.Lemmas
 public import FLT.Deformations.LiftFunctor
 public import FLT.Deformations.Representable
 public import FLT.Deformations.RepresentationTheory.AbsoluteGaloisGroup
-public import FLT.Deformations.RepresentationTheory.ContinuousSMulDiscrete
 public import FLT.Deformations.RepresentationTheory.Etale
 public import FLT.Deformations.RepresentationTheory.Frobenius
 public import FLT.Deformations.RepresentationTheory.GaloisRep
@@ -82,12 +81,14 @@ public import FLT.KnownIn1980s.EllipticCurves.Torsion
 public import FLT.KnownIn1980s.EllipticCurves.WeilPairing
 public import FLT.KnownIn1980s.PGL2.Defs
 public import FLT.KnownIn1980s.PGL2.Proofs
+public import FLT.KnownIn1980s.RepresentationTheory.OddAbsIrred
 public import FLT.Mathlib.Algebra.Algebra.Bilinear
 public import FLT.Mathlib.Algebra.Algebra.Hom
 public import FLT.Mathlib.Algebra.Algebra.Pi
 public import FLT.Mathlib.Algebra.Algebra.Tower
 public import FLT.Mathlib.Algebra.Central.TensorProduct
 public import FLT.Mathlib.Algebra.FixedPoints.Basic
+public import FLT.Mathlib.Algebra.Group.Action.Hom
 public import FLT.Mathlib.Algebra.IsDirectLimit
 public import FLT.Mathlib.Algebra.IsQuaternionAlgebra
 public import FLT.Mathlib.Algebra.Module.Submodule.Basic
@@ -96,8 +97,10 @@ public import FLT.Mathlib.Analysis.Normed.Ring.WithAbs
 public import FLT.Mathlib.Data.Fin.Basic
 public import FLT.Mathlib.Data.Real.Archimedean
 public import FLT.Mathlib.Data.Set.Prod
+public import FLT.Mathlib.FieldTheory.Galois.Infinite
 public import FLT.Mathlib.FieldTheory.SplittingField.IsSplittingField
 public import FLT.Mathlib.GroupTheory.DoubleCoset
+public import FLT.Mathlib.GroupTheory.GroupAction.Quotient
 public import FLT.Mathlib.GroupTheory.Index
 public import FLT.Mathlib.LinearAlgebra.Countable
 public import FLT.Mathlib.LinearAlgebra.Determinant
@@ -144,9 +147,11 @@ public import FLT.Mathlib.RingTheory.Valuation.ValuationSubring
 public import FLT.Mathlib.Topology.Algebra.Algebra.Hom
 public import FLT.Mathlib.Topology.Algebra.ContinuousAlgEquiv
 public import FLT.Mathlib.Topology.Algebra.ContinuousMonoidHom
+public import FLT.Mathlib.Topology.Algebra.ContinuousSMulDiscrete
 public import FLT.Mathlib.Topology.Algebra.Group.Basic
 public import FLT.Mathlib.Topology.Algebra.Group.Quotient
 public import FLT.Mathlib.Topology.Algebra.Group.Units
+public import FLT.Mathlib.Topology.Algebra.IsUniformGroup.Basic
 public import FLT.Mathlib.Topology.Algebra.Module.Equiv
 public import FLT.Mathlib.Topology.Algebra.Module.FiniteDimension
 public import FLT.Mathlib.Topology.Algebra.Module.ModuleTopology
@@ -194,6 +199,13 @@ public import FLT.Patching.Utils.TopologicallyFG
 public import FLT.Patching.VanishingFilter
 public import FLT.Proof
 public import FLT.QuaternionAlgebra.NumberField
+public import FLT.Slop.DimensionTheorem
+public import FLT.Slop.DimensionTheorem.Defs
+public import FLT.Slop.DimensionTheorem.DimEqDelta
+public import FLT.Slop.DimensionTheorem.DimLeGrowth
+public import FLT.Slop.DimensionTheorem.GrowthLeDelta
+public import FLT.Slop.DimensionTheorem.Main
+public import FLT.Slop.DimensionTheorem.Numeric
 public import FLT.Slop.PGL2.FiniteSubgroups.CyclicPartition
 public import FLT.Slop.PGL2.FiniteSubgroups.DicksonClassification
 public import FLT.Slop.PGL2.FiniteSubgroups.FieldReconstruction
@@ -206,4 +218,6 @@ public import FLT.Slop.PGL2.FiniteSubgroups.PartitionProof
 public import FLT.Slop.PGL2.FiniteSubgroups.RecognitionA5
 public import FLT.Slop.PGL2.FiniteSubgroups.TameClassification
 public import FLT.Slop.PGL2.FiniteSubgroups.WildClassification
+public import FLT.Slop.RepresentationTheory.OddAbsIrredOrig
+public import FLT.Slop.RepresentationTheory.OddAbsIrredSlop
 public import FLT.TateCurve.TateCurve
