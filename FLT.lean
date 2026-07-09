@@ -71,6 +71,7 @@ public import FLT.Hacks.RightActionInstances
 public import FLT.HenselianLocalRing.EtaleDecomposition
 public import FLT.HenselianLocalRing.Finite
 public import FLT.HenselianLocalRing.Stuff
+public import FLT.KnownIn1980s.EllipticCurves.EllipticQuotient
 public import FLT.KnownIn1980s.EllipticCurves.Flat
 public import FLT.KnownIn1980s.EllipticCurves.GoodReduction
 public import FLT.KnownIn1980s.EllipticCurves.QuadraticTwists
@@ -206,6 +207,8 @@ public import FLT.Slop.DimensionTheorem.DimLeGrowth
 public import FLT.Slop.DimensionTheorem.GrowthLeDelta
 public import FLT.Slop.DimensionTheorem.Main
 public import FLT.Slop.DimensionTheorem.Numeric
+public import FLT.Slop.EllipticQuotient.Descent
+public import FLT.Slop.EllipticQuotient.Lemmas
 public import FLT.Slop.PGL2.FiniteSubgroups.CyclicPartition
 public import FLT.Slop.PGL2.FiniteSubgroups.DicksonClassification
 public import FLT.Slop.PGL2.FiniteSubgroups.FieldReconstruction
