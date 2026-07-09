@@ -31,10 +31,10 @@ over the distinct x-coordinates of the nonzero points of `C`:
 
 ## Remaining `sorry`s
 
-1. `velT`, `velW`: Vélu's sums `t`, `w` as expressions in the coefficients of `h`. When `C`
-   has trivial 2-torsion these are the power-sum expressions of `velT_spec`/`velW_spec`; in
-   general they need Kohel's 2-torsion correction, splitting `h` into a 2-torsion factor
-   `gcd(h, 4X³ + b₂X² + 2b₄X + b₆)` and an odd part (Kohel's thesis, §2.4).
+1. `velT_spec`, `velW_spec`: the defined `velT`, `velW` evaluate to the power-sum
+   expressions when `C` has trivial 2-torsion. The content is that a genuine
+   two-torsion-free kernel polynomial is coprime to `4X³ + b₂X² + 2b₄X + b₆`, so Kohel's
+   2-torsion correction terms vanish.
 2. `isElliptic_quotientCurve`: nonvanishing of the quotient discriminant.
 3. `exists_quotientIsogeny`: the rational maps of the isogeny (denominators `h²` and `h³`),
    surjectivity, and the kernel computation — the algebraic heart.
@@ -219,14 +219,47 @@ value. -/
 noncomputable def velS (i : ℕ) (h : k[X]) : k :=
   if i ≤ h.natDegree then (-1) ^ i * h.coeff (h.natDegree - i) else 0
 
-/-- Vélu's `t`, as an expression in the coefficients of `E` and `h`. `sorry`d: with trivial
-2-torsion it is the power-sum expression of `velT_spec`; in general the 2-torsion points
-contribute half the paired contribution, requiring Kohel's correction (thesis §2.4). -/
-noncomputable def velT (E : WeierstrassCurve k) (h : k[X]) : k := sorry
+open Classical in
+/-- Vélu's `t`, in Kohel's form (thesis §2.4): split `h` into its 2-torsion factor
+`g = gcd(h, 4X³ + b₂X² + 2b₄X + b₆)` and odd part `h₀ = h/g`. Each pair `{Q, −Q}` of
+non-2-torsion points contributes `6x² + b₂x + b₄`, summed over the roots of `h₀` via their
+power sums, and each 2-torsion point contributes half that. In characteristic 2 a genuine
+`g` has degree at most 1 and the halved contribution at its root `x₀` is `x₀² + a₄ + a₁y₀`,
+where `a₁y₀` is the unique square root of `a₁²(x₀³ + a₂x₀² + a₄x₀ + a₆)` (junk `0` if there
+is none in `k`). -/
+noncomputable def velT (E : WeierstrassCurve k) (h : k[X]) : k :=
+  let g := normalize (EuclideanDomain.gcd h E.twoTorsionPolynomial.toPoly)
+  let h₀ := h /ₘ g
+  6 * (velS 1 h₀ ^ 2 - 2 * velS 2 h₀) + E.b₂ * velS 1 h₀ + h₀.natDegree * E.b₄
+    + if (2 : k) = 0 then
+        if g.natDegree = 1 then
+          let x₀ := -g.coeff 0
+          x₀ ^ 2 + E.a₄ +
+            if H : ∃ s : k, s ^ 2 = E.a₁ ^ 2 * (x₀ ^ 3 + E.a₂ * x₀ ^ 2 + E.a₄ * x₀ + E.a₆)
+            then H.choose else 0
+        else 0
+      else (6 * (velS 1 g ^ 2 - 2 * velS 2 g) + E.b₂ * velS 1 g + g.natDegree * E.b₄) / 2
 
-/-- Vélu's `w`. `sorry`d, same status as `velT`; the trivial-2-torsion form is in
-`velW_spec`. -/
-noncomputable def velW (E : WeierstrassCurve k) (h : k[X]) : k := sorry
+open Classical in
+/-- Vélu's `w`, with the same splitting `h = g·h₀` as `velT`: a pair `{Q, −Q}` contributes
+`10x³ + 2b₂x² + 3b₄x + b₆`, and a 2-torsion point contributes `x₀·t_Q` (its `u_Q`-term
+`4x₀³ + b₂x₀² + 2b₄x₀ + b₆` vanishes), i.e. `x₀` times its `velT` contribution. -/
+noncomputable def velW (E : WeierstrassCurve k) (h : k[X]) : k :=
+  let g := normalize (EuclideanDomain.gcd h E.twoTorsionPolynomial.toPoly)
+  let h₀ := h /ₘ g
+  10 * (velS 1 h₀ ^ 3 - 3 * velS 1 h₀ * velS 2 h₀ + 3 * velS 3 h₀)
+    + 2 * E.b₂ * (velS 1 h₀ ^ 2 - 2 * velS 2 h₀) + 3 * E.b₄ * velS 1 h₀
+    + h₀.natDegree * E.b₆
+    + if (2 : k) = 0 then
+        if g.natDegree = 1 then
+          let x₀ := -g.coeff 0
+          x₀ * (x₀ ^ 2 + E.a₄ +
+            if H : ∃ s : k, s ^ 2 = E.a₁ ^ 2 * (x₀ ^ 3 + E.a₂ * x₀ ^ 2 + E.a₄ * x₀ + E.a₆)
+            then H.choose else 0)
+        else 0
+      else
+        (6 * (velS 1 g ^ 3 - 3 * velS 1 g * velS 2 g + 3 * velS 3 g)
+          + E.b₂ * (velS 1 g ^ 2 - 2 * velS 2 g) + E.b₄ * velS 1 g) / 2
 
 /-- The quotient curve `E/C` (Vélu/Kohel): `a₁, a₂, a₃` unchanged, `a₄' = a₄ − 5t`,
 `a₆' = a₆ − b₂t − 7w`. -/
